@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     let shop = searchParams.get("shop");
-    const chargeId = searchParams.get("charge_id"); 
+    const chargeId = searchParams.get("charge_id");
     const hostParam = searchParams.get("host");
 
     console.log("🔎 Callback params:", { shop, chargeId, hostParam });
@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
 
     if (!shop || !chargeId) {
       console.error("❌ Missing shop or chargeId in callback");
-      return NextResponse.redirect(`${process.env.HOST}/app?billing=missing_params`);
+      return NextResponse.redirect(
+        `${process.env.HOST}/app?billing=missing_params`
+      );
     }
 
     const sessions = await findSessionsByShop(shop);
@@ -58,7 +60,9 @@ export async function GET(req: NextRequest) {
       update: {
         chargeId: rac.id.toString(),
         planName: rac.name,
-        cappedAmount: rac.capped_amount ? parseFloat(rac.capped_amount) : null, 
+        cappedAmount: rac.capped_amount
+          ? parseFloat(rac.capped_amount)
+          : null,
         currency: rac.currency,
         status: rac.status,
         test: rac.test,
@@ -67,24 +71,34 @@ export async function GET(req: NextRequest) {
         shop,
         chargeId: rac.id.toString(),
         planName: rac.name,
-        cappedAmount: rac.capped_amount ? parseFloat(rac.capped_amount) : null,
+        cappedAmount: rac.capped_amount
+          ? parseFloat(rac.capped_amount)
+          : null,
         currency: rac.currency,
         status: rac.status,
         test: rac.test,
       },
     });
-    
 
     console.log("✅ Subscription saved for shop:", shop);
 
-    // Re-encode host safely
-    const encodedHost =
-      hostParam ||
-      Buffer.from(`${shop}/admin`, "utf8")
+    // ✅ Always prefer the host param Shopify sends
+    // Fallback: generate one only in local dev
+    let finalHost = hostParam;
+    if (!finalHost && shop) {
+      finalHost = Buffer.from(`${shop}/admin`, "utf8")
         .toString("base64")
         .replace(/=/g, "");
+      console.log("ℹ️ Generated fallback host (local dev):", finalHost);
+    }
 
-    const redirectUrl = `https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/royalty/billing/start?shop=${shop}&host=${encodedHost}`;
+    if (!finalHost) {
+      console.error("❌ Missing host param and unable to generate fallback");
+      return NextResponse.redirect(`${process.env.HOST}/app?billing=no_host`);
+    }
+
+    // ✅ Only include host (not shop) in redirect query
+    const redirectUrl = `https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/royalty/billing/start?host=${finalHost}`;
 
     console.log("✅ Redirecting back to Shopify app:", redirectUrl);
 
