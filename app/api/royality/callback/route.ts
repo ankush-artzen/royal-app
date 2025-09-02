@@ -15,7 +15,6 @@ export async function GET(req: NextRequest) {
 
     console.log("🔎 Callback params:", { shop, chargeId, hostParam });
 
-    // ✅ Extract shop from host if missing
     if (!shop && hostParam) {
       const decodedHost = Buffer.from(hostParam, "base64").toString("utf8");
       shop = decodedHost.replace("/admin", "");
@@ -47,7 +46,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=fetch_failed`);
     }
 
-    // 2️⃣ Activate if pending
+    // 2️⃣ Handle $0 + capped charges differently
+    if (parseFloat(rac.price) === 0 && rac.capped_amount && rac.status === "pending") {
+      console.log("ℹ️ $0 + capped charge requires merchant confirmation");
+      return NextResponse.redirect(rac.confirmation_url); // <-- redirect merchant to confirm charge
+    }
+
+    // 3️⃣ Activate charge if pending (non-$0 charges)
     if (rac.status === "pending") {
       const activateRes = await fetch(
         `https://${shop}/admin/api/${API_VERSION}/recurring_application_charges/${chargeId}/activate.json`,
@@ -59,21 +64,19 @@ export async function GET(req: NextRequest) {
           },
         }
       );
-
       const activateData = await activateRes.json();
       if (!activateRes.ok) {
         return NextResponse.redirect(`${process.env.HOST}/app?billing=activation_failed`);
       }
-
       rac = activateData?.recurring_application_charge || rac;
     }
 
-    // 3️⃣ Must be active
+    // 4️⃣ Must be active before saving
     if (rac.status !== "active") {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=not_active`);
     }
 
-    // 4️⃣ Save subscription
+    // 5️⃣ Save subscription in DB
     await prisma.royaltySubscription.upsert({
       where: { shop },
       update: {
@@ -97,25 +100,22 @@ export async function GET(req: NextRequest) {
 
     console.log("✅ Subscription saved for shop:", shop);
 
-    // 5️⃣ Handle host param
+    // 6️⃣ Handle host param
     let finalHost = hostParam;
     if (!finalHost && shop) {
-      finalHost = Buffer.from(`${shop}/admin`, "utf8")
-        .toString("base64")
-        .replace(/=/g, "");
+      finalHost = Buffer.from(`${shop}/admin`, "utf8").toString("base64").replace(/=/g, "");
     }
-
     if (!finalHost) {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=no_host`);
     }
 
-    // 6️⃣ Redirect back to your app root in Admin (dynamic, no hardcode)
+    // 7️⃣ Redirect back to Shopify app dynamically
     const shopAlias = shop.replace(".myshopify.com", "");
-    const appHandle = process.env.SHOPIFY_APP_HANDLE; 
+    const appHandle = process.env.SHOPIFY_APP_HANDLE; // must match your Partner Dashboard app handle
 
     const redirectUrl = `https://admin.shopify.com/store/${shopAlias}/apps/${appHandle}?host=${finalHost}`;
-
     console.log("✅ Redirecting back to Shopify app:", redirectUrl);
+
     return NextResponse.redirect(redirectUrl);
   } catch (error: any) {
     console.error("❌ Callback error:", error?.message || error);
