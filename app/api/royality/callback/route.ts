@@ -22,11 +22,10 @@ export async function GET(req: NextRequest) {
 
     if (!shop || !chargeId) {
       console.error("❌ Missing shop or chargeId in callback");
-      return NextResponse.redirect(
-        `${process.env.HOST}/app?billing=missing_params`
-      );
+      return NextResponse.redirect(`${process.env.HOST}/app?billing=missing_params`);
     }
 
+    // Find the access token from session DB
     const sessions = await findSessionsByShop(shop);
     const token = sessions?.[0]?.accessToken;
 
@@ -35,7 +34,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=no_token`);
     }
 
-    // Confirm the charge with Shopify
+    // 1️⃣ Fetch charge info
     const resp = await fetch(
       `https://${shop}/admin/api/${API_VERSION}/recurring_application_charges/${chargeId}.json`,
       { headers: { "X-Shopify-Access-Token": token } }
@@ -50,19 +49,46 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=fetch_failed`);
     }
 
+    // 2️⃣ If charge is still pending → activate it
+    if (rac.status === "pending") {
+      console.log("ℹ️ Charge is pending, activating...");
+
+      const activateRes = await fetch(
+        `https://${shop}/admin/api/${API_VERSION}/recurring_application_charges/${chargeId}/activate.json`,
+        {
+          method: "POST",
+          headers: {
+            "X-Shopify-Access-Token": token,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const activateData = await activateRes.json();
+      console.log("🔑 Activated charge response:", activateData);
+
+      if (!activateRes.ok) {
+        console.error("❌ Failed to activate charge");
+        return NextResponse.redirect(`${process.env.HOST}/app?billing=activation_failed`);
+      }
+
+      // Replace rac with activated version
+      Object.assign(rac, activateData?.recurring_application_charge);
+    }
+
+    // 3️⃣ Ensure charge is active
     if (rac.status !== "active") {
       console.error("❌ Charge is not active:", rac.status);
       return NextResponse.redirect(`${process.env.HOST}/app?billing=not_active`);
     }
 
+    // 4️⃣ Save subscription in DB
     await prisma.royaltySubscription.upsert({
       where: { shop },
       update: {
         chargeId: rac.id.toString(),
         planName: rac.name,
-        cappedAmount: rac.capped_amount
-          ? parseFloat(rac.capped_amount)
-          : null,
+        cappedAmount: rac.capped_amount ? parseFloat(rac.capped_amount) : null,
         currency: rac.currency,
         status: rac.status,
         test: rac.test,
@@ -71,9 +97,7 @@ export async function GET(req: NextRequest) {
         shop,
         chargeId: rac.id.toString(),
         planName: rac.name,
-        cappedAmount: rac.capped_amount
-          ? parseFloat(rac.capped_amount)
-          : null,
+        cappedAmount: rac.capped_amount ? parseFloat(rac.capped_amount) : null,
         currency: rac.currency,
         status: rac.status,
         test: rac.test,
@@ -82,13 +106,10 @@ export async function GET(req: NextRequest) {
 
     console.log("✅ Subscription saved for shop:", shop);
 
-    // ✅ Always prefer the host param Shopify sends
-    // Fallback: generate one only in local dev
+    // 5️⃣ Handle host param properly
     let finalHost = hostParam;
     if (!finalHost && shop) {
-      finalHost = Buffer.from(`${shop}/admin`, "utf8")
-        .toString("base64")
-        .replace(/=/g, "");
+      finalHost = Buffer.from(`${shop}/admin`, "utf8").toString("base64").replace(/=/g, "");
       console.log("ℹ️ Generated fallback host (local dev):", finalHost);
     }
 
@@ -97,9 +118,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=no_host`);
     }
 
-    // ✅ Only include host (not shop) in redirect query
+    // 6️⃣ Redirect back to Shopify app
     const redirectUrl = `https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/royalty/billing/start?host=${finalHost}`;
-
     console.log("✅ Redirecting back to Shopify app:", redirectUrl);
 
     return NextResponse.redirect(redirectUrl);
