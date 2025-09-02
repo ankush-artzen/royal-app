@@ -158,7 +158,7 @@ export default function RoyaltiesPage() {
           ) : royalties.length === 0 ? (
             <EmptyState
               heading="No royalties assigned yet"
-              action={{ content: "Assign Royalty", url: "/royalties/new" }}
+              action={{ content: "Assign Royalty", url: "/royalty/create" }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
               <p>
