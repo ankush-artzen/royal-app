@@ -6,14 +6,17 @@ const API_VERSION = "2025-07";
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    // ✅ Normalize URL (remove accidental double slashes)
+    const normalizedUrl = req.url.replace(/([^:]\/)\/+/g, "$1");
+    const { searchParams } = new URL(normalizedUrl);
+
     let shop = searchParams.get("shop");
     const chargeId = searchParams.get("charge_id");
     const hostParam = searchParams.get("host");
 
     console.log("🔎 Callback params:", { shop, chargeId, hostParam });
 
-    // Fallback: if no shop param, try to decode from host
+    // ✅ Extract shop from host if missing
     if (!shop && hostParam) {
       const decodedHost = Buffer.from(hostParam, "base64").toString("utf8");
       shop = decodedHost.replace("/admin", "");
@@ -25,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${process.env.HOST}/app?billing=missing_params`);
     }
 
-    // Find the access token from session DB
+    // ✅ Find token
     const sessions = await findSessionsByShop(shop);
     const token = sessions?.[0]?.accessToken;
 
@@ -43,7 +46,7 @@ export async function GET(req: NextRequest) {
     const data = await resp.json();
     console.log("🔎 Charge response:", data);
 
-    const rac = data?.recurring_application_charge;
+    let rac = data?.recurring_application_charge;
     if (!resp.ok || !rac) {
       console.error("❌ Failed to fetch charge info");
       return NextResponse.redirect(`${process.env.HOST}/app?billing=fetch_failed`);
@@ -72,8 +75,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(`${process.env.HOST}/app?billing=activation_failed`);
       }
 
-      // Replace rac with activated version
-      Object.assign(rac, activateData?.recurring_application_charge);
+      rac = activateData?.recurring_application_charge || rac;
     }
 
     // 3️⃣ Ensure charge is active
