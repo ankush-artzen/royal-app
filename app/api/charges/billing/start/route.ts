@@ -33,7 +33,10 @@ export async function POST(req: NextRequest) {
     console.log("🔑 Token from cookie:", token ? "✅ Found" : "❌ Missing");
 
     if (!name || price === undefined) {
-      return NextResponse.json({ error: "name and price are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "name and price are required" },
+        { status: 400 },
+      );
     }
     if (!shop) {
       return NextResponse.json({ error: "shop is required" }, { status: 400 });
@@ -49,10 +52,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No access token" }, { status: 401 });
     }
 
-    // 🟢 Ensure host param is passed forward
     let hostParam = queryHost;
     if (!hostParam && shop) {
-      hostParam = Buffer.from(`${shop}/admin`, "utf8").toString("base64").replace(/=/g, "");
+      hostParam = Buffer.from(shop, "utf8")
+        .toString("base64")
+        .replace(/=/g, "");
       console.log("ℹ️ Generated fallback host:", hostParam);
     }
 
@@ -77,13 +81,19 @@ export async function POST(req: NextRequest) {
       bodyPayload.recurring_application_charge.terms = terms;
     }
 
-    console.log("📤 Sending request to Shopify:", JSON.stringify(bodyPayload, null, 2));
+    console.log(
+      "📤 Sending request to Shopify:",
+      JSON.stringify(bodyPayload, null, 2),
+    );
 
     const resp = await fetch(
       `https://${shop}/admin/api/${API_VERSION}/recurring_application_charges.json`,
       {
         method: "POST",
-        headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },
+        headers: {
+          "X-Shopify-Access-Token": token,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(bodyPayload),
       },
     );
@@ -92,13 +102,19 @@ export async function POST(req: NextRequest) {
     console.log("📥 Shopify response:", JSON.stringify(data, null, 2));
 
     if (!resp.ok) {
-      return NextResponse.json({ error: "Shopify error", details: data }, { status: resp.status });
+      return NextResponse.json(
+        { error: "Shopify error", details: data },
+        { status: resp.status },
+      );
     }
 
     const rac = data?.recurring_application_charge;
     const confirmationUrl = rac?.confirmation_url;
     if (!confirmationUrl) {
-      return NextResponse.json({ error: "Missing confirmation_url" }, { status: 502 });
+      return NextResponse.json(
+        { error: "Missing confirmation_url" },
+        { status: 502 },
+      );
     }
 
     console.log("✅ Charge created successfully:", confirmationUrl);
@@ -109,7 +125,9 @@ export async function POST(req: NextRequest) {
         update: {
           chargeId: String(rac.id),
           planName: rac.name,
-          cappedAmount: rac.capped_amount ? parseFloat(rac.capped_amount) : null,
+          cappedAmount: rac.capped_amount
+            ? parseFloat(rac.capped_amount)
+            : null,
           currency: rac.currency || "USD",
           status: rac.status,
           test: rac.test,
@@ -118,7 +136,9 @@ export async function POST(req: NextRequest) {
           shop,
           chargeId: String(rac.id),
           planName: rac.name,
-          cappedAmount: rac.capped_amount ? parseFloat(rac.capped_amount) : null,
+          cappedAmount: rac.capped_amount
+            ? parseFloat(rac.capped_amount)
+            : null,
           currency: rac.currency || "USD",
           status: rac.status,
           test: rac.test,
