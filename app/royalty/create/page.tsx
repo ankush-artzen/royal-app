@@ -165,8 +165,8 @@ export default function AssignRoyalty() {
             tone="critical"
           >
             <p>
-              You need an active subscription before assigning royalties to products. 
-              Please enable billing in your Shopify admin first.
+              You need an enable a billing subscription before assigning royalties to products. 
+              Please enable billing  first.
             </p>
           </Banner>
         )}

@@ -222,8 +222,9 @@ export default function HomePage() {
                 Track and distribute royalties to your designers automatically.
               </Text>
               <Text as="p" tone="subdued">
-                First You have to Enable Royalty Billing , to pay total royality
-                amount, Then you can pay usage charges for royalties.
+                You have to Enable Royalty Billing first to assign royalty
+                products , Then you can pay royalty charges as well for your
+                products royalties.
               </Text>
             </Banner>
             <br />
