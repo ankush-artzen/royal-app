@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     const { name, price, cappedAmount, terms, test } = body;
     const url = new URL(req.url);
     const queryShop = url.searchParams.get("shop");
+    const queryHost = url.searchParams.get("host");
     const bodyShop = body?.shop;
 
     const cookieStore = cookies();
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "shop is required" }, { status: 400 });
     }
 
+    // 🟢 Find token in DB if missing
     if (!token) {
       console.log("🔍 Looking for token in DB for shop:", shop);
       const sessions = await findSessionsByShop(shop);
@@ -47,11 +49,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No access token" }, { status: 401 });
     }
 
+    // 🟢 Ensure host param is passed forward
+    let hostParam = queryHost;
+    if (!hostParam && shop) {
+      hostParam = Buffer.from(`${shop}/admin`, "utf8").toString("base64").replace(/=/g, "");
+      console.log("ℹ️ Generated fallback host:", hostParam);
+    }
+
+    // 🟢 Build body for Shopify
     const bodyPayload: any = {
       recurring_application_charge: {
         name,
         price,
-        return_url: `${process.env.HOST}/api/royality/callback?shop=${shop}`,
+        return_url: `${process.env.HOST?.replace(/\/$/, "")}/api/royality/callback?shop=${shop}&host=${hostParam}`,
         test: test ?? true,
       },
     };
