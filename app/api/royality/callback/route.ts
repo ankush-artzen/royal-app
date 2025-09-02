@@ -6,7 +6,6 @@ const API_VERSION = "2025-07";
 
 export async function GET(req: NextRequest) {
   try {
-    // ✅ Normalize URL (remove accidental double slashes)
     const normalizedUrl = req.url.replace(/([^:]\/)\/+/g, "$1");
     const { searchParams } = new URL(normalizedUrl);
 
@@ -24,16 +23,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (!shop || !chargeId) {
-      console.error("❌ Missing shop or chargeId in callback");
       return NextResponse.redirect(`${process.env.HOST}/app?billing=missing_params`);
     }
 
-    // ✅ Find token
+    // ✅ Get token
     const sessions = await findSessionsByShop(shop);
     const token = sessions?.[0]?.accessToken;
 
     if (!token) {
-      console.error("❌ No access token found for shop:", shop);
       return NextResponse.redirect(`${process.env.HOST}/app?billing=no_token`);
     }
 
@@ -44,18 +41,14 @@ export async function GET(req: NextRequest) {
     );
 
     const data = await resp.json();
-    console.log("🔎 Charge response:", data);
-
     let rac = data?.recurring_application_charge;
+
     if (!resp.ok || !rac) {
-      console.error("❌ Failed to fetch charge info");
       return NextResponse.redirect(`${process.env.HOST}/app?billing=fetch_failed`);
     }
 
-    // 2️⃣ If charge is still pending → activate it
+    // 2️⃣ Activate if pending
     if (rac.status === "pending") {
-      console.log("ℹ️ Charge is pending, activating...");
-
       const activateRes = await fetch(
         `https://${shop}/admin/api/${API_VERSION}/recurring_application_charges/${chargeId}/activate.json`,
         {
@@ -68,23 +61,19 @@ export async function GET(req: NextRequest) {
       );
 
       const activateData = await activateRes.json();
-      console.log("🔑 Activated charge response:", activateData);
-
       if (!activateRes.ok) {
-        console.error("❌ Failed to activate charge");
         return NextResponse.redirect(`${process.env.HOST}/app?billing=activation_failed`);
       }
 
       rac = activateData?.recurring_application_charge || rac;
     }
 
-    // 3️⃣ Ensure charge is active
+    // 3️⃣ Must be active
     if (rac.status !== "active") {
-      console.error("❌ Charge is not active:", rac.status);
       return NextResponse.redirect(`${process.env.HOST}/app?billing=not_active`);
     }
 
-    // 4️⃣ Save subscription in DB
+    // 4️⃣ Save subscription
     await prisma.royaltySubscription.upsert({
       where: { shop },
       update: {
@@ -108,22 +97,25 @@ export async function GET(req: NextRequest) {
 
     console.log("✅ Subscription saved for shop:", shop);
 
-    // 5️⃣ Handle host param properly
+    // 5️⃣ Handle host param
     let finalHost = hostParam;
     if (!finalHost && shop) {
-      finalHost = Buffer.from(`${shop}/admin`, "utf8").toString("base64").replace(/=/g, "");
-      console.log("ℹ️ Generated fallback host (local dev):", finalHost);
+      finalHost = Buffer.from(`${shop}/admin`, "utf8")
+        .toString("base64")
+        .replace(/=/g, "");
     }
 
     if (!finalHost) {
-      console.error("❌ Missing host param and unable to generate fallback");
       return NextResponse.redirect(`${process.env.HOST}/app?billing=no_host`);
     }
 
-    // 6️⃣ Redirect back to Shopify app
-    const redirectUrl = `https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/royalty/billing/start?host=${finalHost}`;
-    console.log("✅ Redirecting back to Shopify app:", redirectUrl);
+    // 6️⃣ Redirect back to your app root in Admin (dynamic, no hardcode)
+    const shopAlias = shop.replace(".myshopify.com", "");
+    const appHandle = process.env.SHOPIFY_APP_HANDLE; 
 
+    const redirectUrl = `https://admin.shopify.com/store/${shopAlias}/apps/${appHandle}?host=${finalHost}`;
+
+    console.log("✅ Redirecting back to Shopify app:", redirectUrl);
     return NextResponse.redirect(redirectUrl);
   } catch (error: any) {
     console.error("❌ Callback error:", error?.message || error);
