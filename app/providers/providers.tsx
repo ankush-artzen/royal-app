@@ -15,6 +15,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <Link href="/royalty/create">create </Link>
           <Link href="/royalty">Royality Products</Link>
           <Link href="/royalty/orders">Orders </Link>
+          <Link href="/royalty/billing/start">billing</Link>
+
 
           {/* <Link href="/royal/">orders</Link> */}
         </ui-nav-menu>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma-connect";
+import { createRoyaltyTransactionForOrder } from "@/lib/helper/createRoyaltyTransactionForOrder";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,22 +30,19 @@ export async function POST(req: NextRequest) {
       const royalties = await prisma.productRoyalty.findMany({
         where: {
           shop,
-          OR: [
-            { shopifyId: productIdNumeric },
-            { shopifyId: productIdGid },
-          ],
+          OR: [{ shopifyId: productIdNumeric }, { shopifyId: productIdGid }],
         },
       });
 
-      if (!royalties.length) continue; 
+      if (!royalties.length) continue;
 
       const quantity = item.quantity;
       const unitPrice = parseFloat(item.price);
       const lineTotal = unitPrice * quantity;
 
       for (const royalty of royalties) {
-        const productRoyalityCalculatedAmount = (lineTotal * royalty.Royality) / 100;
-        const royaltypercentage = royalty.Royality;
+        const productRoyalityCalculatedAmount =
+          (lineTotal * royalty.Royality) / 100;
 
         lineItemsToAdd.push({
           productId: royalty.productId,
@@ -55,7 +53,7 @@ export async function POST(req: NextRequest) {
           productRoyalityCalculatedAmount,
           quantity,
           unitPrice,
-          royaltypercentage,
+          royaltypercentage: royalty.Royality,
         });
       }
     }
@@ -95,11 +93,24 @@ export async function POST(req: NextRequest) {
           },
           calculatedroyaltyamount:
             royaltyOrder.calculatedroyaltyamount +
-            lineItemsToAdd.reduce((sum, li) => sum + li.productRoyalityCalculatedAmount, 0),
+            lineItemsToAdd.reduce(
+              (sum, li) => sum + li.productRoyalityCalculatedAmount,
+              0
+            ),
         },
       });
     }
 
+    const description = `Royalty payment for order ${royaltyOrder.orderName}`;
+    const price = royaltyOrder.calculatedroyaltyamount;
+
+    await createRoyaltyTransactionForOrder({
+      shop,
+      orderId,
+      description,
+      price,
+      currency,
+    });
 
     return NextResponse.json({
       success: true,

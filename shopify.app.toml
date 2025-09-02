@@ -3,7 +3,7 @@
 client_id = "0efee26ca59dd392e4690f4b84befe14"
 name = "Royal-app"
 handle = "royal-app-2"
-application_url = "https://faces-checklist-cowboy-phpbb.trycloudflare.com"
+application_url = "https://boom-entities-durable-blanket.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "read_customers,read_orders,read_products,write_orders,write_products"
 
 [auth]
 redirect_urls = [
-  "https://faces-checklist-cowboy-phpbb.trycloudflare.com/auth/callback",
-  "https://faces-checklist-cowboy-phpbb.trycloudflare.com/auth/shopify/callback",
-  "https://faces-checklist-cowboy-phpbb.trycloudflare.com/api/auth/callback"
+  "https://boom-entities-durable-blanket.trycloudflare.com/auth/callback",
+  "https://boom-entities-durable-blanket.trycloudflare.com/auth/shopify/callback",
+  "https://boom-entities-durable-blanket.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]

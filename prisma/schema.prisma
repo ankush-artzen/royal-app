@@ -112,3 +112,29 @@ type LineItem {
   unitPrice        Float
   royaltypercentage  Float
 }
+model RoyaltySubscription {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop         String   @unique
+  chargeId     String
+  planName     String
+  cappedAmount Float?
+  currency     String?
+  status       String
+  test         Boolean
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model RoyaltyTransaction {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop            String   
+  shopifyTransactionChargeId String
+  orderId         String
+  description     String
+  price           Float
+  currency        String
+  balanceUsed     Float
+  balanceRemaining Float
+  createdAt       DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
