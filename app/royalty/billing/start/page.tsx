@@ -63,6 +63,7 @@ export default function HomePage() {
   const [creatingPlan, setCreatingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [confirmationUrl, setConfirmationUrl] = useState<string | null>(null);
+  const [billingApproved, setBillingApproved] = useState(false);
 
   // Get shop from App Bridge
   useEffect(() => {
@@ -146,56 +147,75 @@ export default function HomePage() {
       setCreatingPlan(false);
     }
   };
+  useEffect(() => {
+    if (!shop) return;
+
+    async function checkBilling() {
+      try {
+        const res = await fetch(`/api/charges/status?shop=${shop}`);
+        const data = await res.json();
+        console.log("Billing status:", data);
+
+        if (res.ok && data.active) {
+          setBillingApproved(true);
+        }
+      } catch (err) {
+        console.error("Error checking billing status:", err);
+      }
+    }
+
+    checkBilling();
+  }, [shop]);
 
   // Pay all pending royalties: create usage charge
-  const payPendingRoyalties = async () => {
-    if (!shop) return setPlanError("Shop info missing");
+  // const payPendingRoyalties = async () => {
+  //   if (!shop) return setPlanError("Shop info missing");
 
-    if (totalRoyaltyAmount <= 0) {
-      console.log("No royalties to pay");
-      return setPlanError("No royalties to pay");
-    }
+  //   if (totalRoyaltyAmount <= 0) {
+  //     console.log("No royalties to pay");
+  //     return setPlanError("No royalties to pay");
+  //   }
 
-    console.log(
-      "Paying pending royalties:",
-      totalRoyaltyAmount,
-      "for",
-      totalOrders,
-      "orders",
-    );
-    setCreatingPlan(true);
-    setPlanError(null);
+  //   console.log(
+  //     "Paying pending royalties:",
+  //     totalRoyaltyAmount,
+  //     "for",
+  //     totalOrders,
+  //     "orders",
+  //   );
+  //   setCreatingPlan(true);
+  //   setPlanError(null);
 
-    try {
-      const res = await fetch(
-        `/api/charges/billing/start/usage?shop=${encodeURIComponent(shop)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            description: `Royalty for ${totalOrders} sales`,
-            price: Number(totalRoyaltyAmount.toFixed(2)),
-          }),
-        },
-      );
+  //   try {
+  //     const res = await fetch(
+  //       `/api/charges/billing/start/usage?shop=${encodeURIComponent(shop)}`,
+  //       {
+  //         method: "POST",
+  //         headers: { "Content-Type": "application/json" },
+  //         body: JSON.stringify({
+  //           description: `Royalty for ${totalOrders} sales`,
+  //           price: Number(totalRoyaltyAmount.toFixed(2)),
+  //         }),
+  //       },
+  //     );
 
-      const data = await res.json();
-      console.log("Usage charge API response:", data);
+  //     const data = await res.json();
+  //     console.log("Usage charge API response:", data);
 
-      if (!res.ok)
-        throw new Error(data.error || "Failed to create usage charge");
+  //     if (!res.ok)
+  //       throw new Error(data.error || "Failed to create usage charge");
 
-      setToastActive(true);
-      setTotalRoyaltyAmount(0);
-      console.log("Royalty paid and totalRoyaltyAmount reset to 0");
-    } catch (err: any) {
-      console.error("Error creating usage charge:", err);
-      setPlanError(err.message || "Unexpected error occurred");
-    } finally {
-      setCreatingPlan(false);
-      console.log("Pay royalties finished. CreatingPlan:", false);
-    }
-  };
+  //     setToastActive(true);
+  //     setTotalRoyaltyAmount(0);
+  //     console.log("Royalty paid and totalRoyaltyAmount reset to 0");
+  //   } catch (err: any) {
+  //     console.error("Error creating usage charge:", err);
+  //     setPlanError(err.message || "Unexpected error occurred");
+  //   } finally {
+  //     setCreatingPlan(false);
+  //     console.log("Pay royalties finished. CreatingPlan:", false);
+  //   }
+  // };
 
   console.log("HomePage render:", {
     shop,
@@ -222,19 +242,20 @@ export default function HomePage() {
                 Track and distribute royalties to your designers automatically.
               </Text>
               <Text as="p" tone="subdued">
-                You have to Enable Royalty Billing first to assign royalty
-                products , Then you can pay royalty charges as well for your
-                products royalties.
+                First You have to Enable Royalty Billing , to pay total royality
+                amount, Then you can pay usage charges for royalties.
               </Text>
             </Banner>
             <br />
             <Button
               variant="primary"
-              disabled={loading || creatingPlan}
+              disabled={loading || creatingPlan || billingApproved}
               loading={creatingPlan}
               onClick={startRoyaltyPlan}
             >
-              Enable Royalty Billing
+              {billingApproved
+                ? "Billing Enabled "
+                : "Enable Royalty Billing"}
             </Button>
           </Card>
         </Layout.Section>
