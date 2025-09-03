@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Page,
   Card,
@@ -25,8 +25,9 @@ export default function AssignRoyalty() {
   const app = useAppBridge();
   const router = useRouter();
 
-  const [shop, setShop] = useState<string>("");
+  const [shop, setShop] = useState<string | null>(null);
   const [billingActive, setBillingActive] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [selectedDesigner, setSelectedDesigner] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<{
@@ -38,7 +39,6 @@ export default function AssignRoyalty() {
   const [royalty, setRoyalty] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Toast
   const [toastActive, setToastActive] = useState(false);
   const [toastContent, setToastContent] = useState("");
   const [toastError, setToastError] = useState(false);
@@ -50,18 +50,28 @@ export default function AssignRoyalty() {
     setToastActive(true);
   };
 
-  // ✅ Fetch shop & billing status
+  // ✅ Step 1: Fetch shop info from App Bridge
   useEffect(() => {
     const shopFromConfig = (app as any)?.config?.shop;
     if (shopFromConfig) {
       setShop(shopFromConfig);
-
-      fetch(`/api/charges/status?shop=${shopFromConfig}`)
-        .then((res) => res.json())
-        .then((data) => setBillingActive(data.active))
-        .catch(() => setBillingActive(false));
+    } else {
+      setError("Unable to retrieve shop info. Please reload the app.");
     }
   }, [app]);
+
+  // ✅ Step 2: Fetch billing status once shop is available
+  useEffect(() => {
+    if (!shop) return;
+
+    fetch(`/api/charges/status?shop=${shop}`)
+      .then((res) => res.json())
+      .then((data) => setBillingActive(data.active))
+      .catch(() => {
+        setBillingActive(false);
+        showToast("Failed to fetch billing status", true);
+      });
+  }, [shop]);
 
   // ✅ Handle Royalty Assignment
   const handleSubmit = async () => {
@@ -113,7 +123,7 @@ export default function AssignRoyalty() {
     }
   };
 
-  // ✅ Product Picker (blocked if billing inactive)
+  // ✅ Product Picker
   const selectProducts = async () => {
     if (!billingActive) {
       showToast("Please enable billing before selecting products", true);
@@ -138,6 +148,34 @@ export default function AssignRoyalty() {
     }
   };
 
+  // ✅ Centered loader while fetching shop or billing
+  if (!shop || billingActive === null) {
+    return (
+      <Frame>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100vh",
+          }}
+        >
+          <Spinner size="large" accessibilityLabel="Loading..." />
+        </div>
+      </Frame>
+    );
+  }
+
+  if (error) {
+    return (
+      <Frame>
+        <Banner title="Error" tone="critical">
+          <p>{error}</p>
+        </Banner>
+      </Frame>
+    );
+  }
+
   return (
     <Frame>
       {toastActive && (
@@ -158,96 +196,91 @@ export default function AssignRoyalty() {
           disabled: loading || !billingActive,
         }}
       >
-        {/* 🔔 Show banner if billing is not active */}
         {billingActive === false && (
           <Banner
             title="Enable billing to assign royalties"
             tone="critical"
           >
             <p>
-              You need an enable a billing subscription before assigning royalties to products. 
-              Please enable billing  first.
+              You need an active subscription before assigning royalties to products. 
+              Please enable billing in your Shopify admin first.
             </p>
           </Banner>
         )}
 
-        {billingActive === null ? (
-          <Spinner accessibilityLabel="Loading billing status" size="large" />
-        ) : (
-          <Form onSubmit={handleSubmit}>
-            <BlockStack gap="600">
-              {/* Product Section */}
-              <Card>
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">
-                    Product
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    Choose the product you want to assign a royalty to.
-                  </Text>
-                  <Button onClick={selectProducts} disabled={!billingActive}>
-                    {selectedProduct ? "Change Product" : "Choose Product"}
-                  </Button>
+        <Form onSubmit={handleSubmit}>
+          <BlockStack gap="600">
+            {/* Product Section */}
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  Product
+                </Text>
+                <Text as="p" tone="subdued">
+                  Choose the product you want to assign a royalty to.
+                </Text>
+                <Button onClick={selectProducts} disabled={!billingActive}>
+                  {selectedProduct ? "Change Product" : "Choose Product"}
+                </Button>
 
-                  {selectedProduct && (
-                    <Card roundedAbove="sm">
-                      <InlineStack gap="300" blockAlign="center">
-                        <Thumbnail
-                          size="large"
-                          source={selectedProduct.image || ""}
-                          alt={selectedProduct.title}
-                        />
-                        <BlockStack>
-                          <Text as="h3" variant="bodyMd" fontWeight="bold">
-                            {selectedProduct.title}
-                          </Text>
-                          <Text as="p" tone="subdued">
-                            ${selectedProduct.price}
-                          </Text>
-                        </BlockStack>
-                        <Button onClick={() => setSelectedProduct(null)}>
-                          Remove
-                        </Button>
-                      </InlineStack>
-                    </Card>
-                  )}
-                </BlockStack>
-              </Card>
+                {selectedProduct && (
+                  <Card roundedAbove="sm">
+                    <InlineStack gap="300" blockAlign="center">
+                      <Thumbnail
+                        size="large"
+                        source={selectedProduct.image || ""}
+                        alt={selectedProduct.title}
+                      />
+                      <BlockStack>
+                        <Text as="h3" variant="bodyMd" fontWeight="bold">
+                          {selectedProduct.title}
+                        </Text>
+                        <Text as="p" tone="subdued">
+                          ${selectedProduct.price}
+                        </Text>
+                      </BlockStack>
+                      <Button onClick={() => setSelectedProduct(null)}>
+                        Remove
+                      </Button>
+                    </InlineStack>
+                  </Card>
+                )}
+              </BlockStack>
+            </Card>
 
-              {/* Designer + Royalty Section */}
-              <Card>
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">
-                    Royalty Details
-                  </Text>
-                  <Divider />
-                  <FormLayout>
-                    <TextField
-                      label="Designer ID"
-                      value={selectedDesigner}
-                      onChange={setSelectedDesigner}
-                      placeholder="Enter designer ID"
-                      autoComplete="off"
-                      disabled={!billingActive}
-                    />
+            {/* Designer + Royalty Section */}
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  Royalty Details
+                </Text>
+                <Divider />
+                <FormLayout>
+                  <TextField
+                    label="Designer ID"
+                    value={selectedDesigner}
+                    onChange={setSelectedDesigner}
+                    placeholder="Enter designer 12 digit ID"
+                    autoComplete="off"
+                    disabled={!billingActive}
+                  />
 
-                    <TextField
-                      label="Royalty Percentage"
-                      type="number"
-                      value={royalty}
-                      onChange={setRoyalty}
-                      min={0}
-                      max={100}
-                      suffix="%"
-                      autoComplete="off"
-                      disabled={!billingActive}
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Card>
-            </BlockStack>
-          </Form>
-        )}
+                  <TextField
+                    label="Royalty Percentage"
+                    type="number"
+                    value={royalty}
+                    onChange={setRoyalty}
+                    min={0}
+                    max={100}
+                    suffix="%"
+                    autoComplete="off"
+                    disabled={!billingActive}
+                  />
+                </FormLayout>
+              </BlockStack>
+            </Card>
+          </BlockStack>
+        </Form>
       </Page>
     </Frame>
   );

@@ -64,6 +64,7 @@ export default function HomePage() {
   const [planError, setPlanError] = useState<string | null>(null);
   const [confirmationUrl, setConfirmationUrl] = useState<string | null>(null);
   const [billingApproved, setBillingApproved] = useState(false);
+  const [checkingBilling, setCheckingBilling] = useState(true);
 
   // Get shop from App Bridge
   useEffect(() => {
@@ -147,10 +148,12 @@ export default function HomePage() {
       setCreatingPlan(false);
     }
   };
+
   useEffect(() => {
     if (!shop) return;
 
     async function checkBilling() {
+      setCheckingBilling(true);
       try {
         const res = await fetch(`/api/charges/status?shop=${shop}`);
         const data = await res.json();
@@ -161,6 +164,8 @@ export default function HomePage() {
         }
       } catch (err) {
         console.error("Error checking billing status:", err);
+      } finally {
+        setCheckingBilling(false);
       }
     }
 
@@ -249,43 +254,44 @@ export default function HomePage() {
             <br />
             <Button
               variant="primary"
-              disabled={loading || creatingPlan || billingApproved}
-              loading={creatingPlan}
+              disabled={
+                loading || creatingPlan || checkingBilling || billingApproved
+              }
+              loading={creatingPlan || checkingBilling}
               onClick={startRoyaltyPlan}
             >
               {billingApproved
-                ? "Billing Enabled "
-                : "Enable Royalty Billing"}
+                ? "Billing Enabled"
+                : checkingBilling
+                  ? "Checking Billing..."
+                  : "Enable Royalty Billing"}
             </Button>
           </Card>
         </Layout.Section>
 
         {/* Quick Stats */}
         <Layout.Section>
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" fontWeight="bold" variant="headingMd">
-                Quick Insights
-              </Text>
-              <Card background="bg-fill-active">
-                <InlineStack align="center">
-                  <BlockStack>
-                    <Text as="h2" variant="headingMd" fontWeight="semibold">
-                      Total Royalties Amount:
-                    </Text>
-                    <Text as="h2" variant="bodyMd" tone="subdued">
-                      Total royalty tracked by all orders
-                    </Text>
-                  </BlockStack>
+          <Card background="bg-fill-active">
+            <InlineStack align="center">
+              <BlockStack>
+                <Text as="h2" variant="headingMd" fontWeight="semibold">
+                  Total Royalties Amount:
+                </Text>
+                <Text as="h2" variant="bodyMd" tone="subdued">
+                  Total royalty tracked by all orders
+                </Text>
+              </BlockStack>
 
-                  <BlockStack>
-                    <Text as="h2" variant="headingLg" fontWeight="bold">
-                      {totalRoyaltyAmount.toFixed(2)}
-                    </Text>
-                  </BlockStack>
-                </InlineStack>
-              </Card>
-            </BlockStack>
+              <BlockStack>
+                {loading ? (
+                  <Spinner size="small" />
+                ) : (
+                  <Text as="h2" variant="headingLg" fontWeight="bold">
+                    {totalRoyaltyAmount.toFixed(2)}
+                  </Text>
+                )}
+              </BlockStack>
+            </InlineStack>
           </Card>
         </Layout.Section>
 
